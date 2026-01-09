@@ -7,6 +7,7 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const uuid = require("uuid").v4;
 const multer = require("multer");
+const helmet = require("helmet");
 
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
@@ -16,9 +17,8 @@ const sharp = require("sharp");
 // const fileUpload = require("express-fileupload");
 
 // multer برای دریافت فایل از فرم‌دیتا
-const upload = multer({ storage: multer.memoryStorage() });
+// const upload = multer({ storage: multer.memoryStorage() });
 
-const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 
 const {
@@ -57,6 +57,54 @@ db.once("open", () => {
 const app = express();
 const port = 3001;
 
+// ایجاد فولدر uploads اگر وجود نداشته باشد
+const uploadDir = path.join(__dirname, "public", "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// تنظیمات Multer برای ذخیره‌سازی محلی
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir); // مسیر ذخیره‌سازی
+  },
+  filename: function (req, file, cb) {
+    const fileName = `${Date.now()}-${uuid()}${path.extname(
+      file.originalname,
+    )}`;
+    cb(null, fileName);
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // محدودیت 5MB
+  fileFilter: (req, file, cb) => {
+    // فقط تصاویر مجاز
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(
+      path.extname(file.originalname).toLowerCase(),
+    );
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error("فقط فایل‌های تصویری مجاز هستند"));
+    }
+  },
+});
+
+// استفاده از Helmet برای افزودن امکانات امنیتی
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // اجازه دسترسی به تصاویر از دامنه‌های دیگر
+  }),
+);
+
+// دسترسی استاتیک به فولدر public
+app.use("/public", express.static(path.join(__dirname, "public")));
+
 // استفاده از Helmet برای افزودن امکانات امنیتی
 app.use(helmet());
 // app.use(fileUpload());
@@ -87,75 +135,74 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // app.use(fileUpload());
 
-// app.post("/upload2", upload.single("image"), async (req, res) => {
-//   try {
-//     console.log("Request received");
-//     console.log("File:", req.file);
-//     console.log("Body:", req.body);
-
-//     if (!req.file) {
-//       return res
-//         .status(400)
-//         .json({ message: "هیچ فایلی ارسال نشده" });
-//     }
-
-//     // پردازش فایل
-//     const imageUrl = `https://example.com/uploads/${req.file.filename}`;
-
-//     res.json({
-//       success: true,
-//       link: imageUrl,
-//       message: "تصویر با موفقیت آپلود شد",
-//     });
-//   } catch (err) {
-//     console.error("Upload Error:", err);
-//     res.status(500).json({
-//       message: "خطا در آپلود تصویر",
-//       error: err.toString(),
-//     });
-//   }
-// });
+// روت آپلود تصویر
 app.post("/upload2", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
-      return res
-        .status(400)
-        .json({ message: "تصویری انتخاب نشده است" });
+      return res.status(400).json({
+        message: "تصویری انتخاب نشده است",
+      });
     }
 
-    const file = req.file; // فایل اصلی
-    const fileName = `${Date.now()}-${uuid()}.jpg`; // نام فایل
-
-    // تنظیم S3Client برای Liara Storage
-    const client = new S3Client({
-      region: "default",
-      endpoint: process.env.LIARA_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.LIARA_ACCESS_KEY,
-        secretAccessKey: process.env.LIARA_SECRET_KEY,
-      },
-    });
-
-    const params = {
-      Body: file.buffer, // فایل مستقیم بدون Base64
-      Bucket: process.env.LIARA_BUCKET_NAME,
-      Key: fileName,
-      ContentType: file.mimetype, // نوع MIME اصلی
-    };
-
-    await client.send(new PutObjectCommand(params));
-
-    const imageUrl = `https://hamrahlink.storage.c2.liara.space/${fileName}`;
+    // ساخت URL کامل تصویر
+    const imageUrl = `https://ulinkk-back.onrender.com/public/uploads/${req.file.filename}`;
 
     res.json({
       message: "تصویر با موفقیت آپلود و ذخیره شد",
       link: imageUrl,
+      filename: req.file.filename,
+      size: req.file.size,
     });
   } catch (error) {
     console.error("خطا در ذخیره تصویر: ", error);
-    res.status(500).json({ message: "خطا در ذخیره تصویر", error });
+    res.status(500).json({
+      message: "خطا در ذخیره تصویر",
+      error: error.message,
+    });
   }
 });
+
+// app.post("/upload2", upload.single("image"), async (req, res) => {
+//   try {
+//     if (!req.file) {
+//       return res
+//         .status(400)
+//         .json({ message: "تصویری انتخاب نشده است" });
+//     }
+
+//     const file = req.file; // فایل اصلی
+//     const fileName = `${Date.now()}-${uuid()}.jpg`; // نام فایل
+
+//     // تنظیم S3Client برای Liara Storage
+//     const client = new S3Client({
+//       region: "default",
+//       endpoint: process.env.LIARA_ENDPOINT,
+//       credentials: {
+//         accessKeyId: process.env.LIARA_ACCESS_KEY,
+//         secretAccessKey: process.env.LIARA_SECRET_KEY,
+//       },
+//     });
+
+//     const params = {
+//       Body: file.buffer, // فایل مستقیم بدون Base64
+//       Bucket: process.env.LIARA_BUCKET_NAME,
+//       Key: fileName,
+//       ContentType: file.mimetype, // نوع MIME اصلی
+//     };
+
+//     await client.send(new PutObjectCommand(params));
+
+//     const imageUrl = `https://hamrahlink.storage.c2.liara.space/${fileName}`;
+
+//     res.json({
+//       message: "تصویر با موفقیت آپلود و ذخیره شد",
+//       link: imageUrl,
+//     });
+//   } catch (error) {
+//     console.error("خطا در ذخیره تصویر: ", error);
+//     res.status(500).json({ message: "خطا در ذخیره تصویر", error });
+//   }
+// });
 
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
