@@ -42,11 +42,7 @@ const GetAllUsersRouter = require("./routes/getAllUsers");
 require("dotenv").config();
 
 mongoose.connect(
-  "mongodb://root:iaBk5EEZ8PW1Q5qyzrsXnwYG@himalayas.liara.cloud:33766/my-app?authSource=admin",
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  },
+  "mongodb+srv://xchat:Abolfazl021_@db1.6qsnqns.mongodb.net/?appName=db1",
 );
 const db = mongoose.connection;
 
