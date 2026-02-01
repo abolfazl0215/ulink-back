@@ -8,12 +8,21 @@ const path = require("path");
 const uuid = require("uuid").v4;
 const multer = require("multer");
 const helmet = require("helmet");
+const cloudinary = require("cloudinary").v2;
+const sharp = require("sharp");
 
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
 
-const sharp = require("sharp");
+// پیکربندی Cloudinary
+cloudinary.config({
+  cloud_name: "dtakyi9mf",
+  api_key: "588183267814191",
+  api_secret: "pX-FbXATvi7couH36CFWn_PURf4",
+  secure: true,
+});
+
 // const fileUpload = require("express-fileupload");
 
 // multer برای دریافت فایل از فرم‌دیتا
@@ -126,10 +135,7 @@ app.use(morgan("dev"));
 // تنظیمات CORS
 const corsOptions = {
   // origin: "http://localhost:3000", // آدرس فرانت‌اند شما
-    origin: [
-    "http://localhost:3000",
-    process.env.FRONT_DOMAIN,
-  ],
+  origin: ["http://localhost:3000", process.env.FRONT_DOMAIN],
   // origin: "https://pounes.ir", // آدرس فرانت‌اند شما
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
   credentials: true, // ارسال کوکی‌ها به ازای درخواست‌های Cross-Origin
@@ -147,14 +153,43 @@ app.post("/upload2", upload.single("image"), async (req, res) => {
       });
     }
 
-    // ساخت URL کامل تصویر
-    const imageUrl = `https://ulinkk-back.onrender.com/public/uploads/${req.file.filename}`;
+    const fileName = `${Date.now()}-${uuidv4()}`;
+
+    // فشردگی و بهینه‌سازی تصویر با Sharp
+    const compressedImageBuffer = await sharp(req.file.buffer)
+      .resize({
+        width: 800,
+        height: 800,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({
+        quality: 80,
+        progressive: true,
+        mozjpeg: true,
+      })
+      .toBuffer();
+
+    // تبدیل buffer به base64
+    const base64Image = compressedImageBuffer.toString("base64");
+    const dataUri = `data:image/jpeg;base64,${base64Image}`;
+
+    // آپلود به Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(dataUri, {
+      public_id: fileName,
+      folder: "uploads",
+      resource_type: "image",
+      format: "jpg",
+      quality: 80,
+      overwrite: true,
+    });
 
     res.json({
       message: "تصویر با موفقیت آپلود و ذخیره شد",
-      link: imageUrl,
-      filename: req.file.filename,
-      size: req.file.size,
+      link: uploadResult.secure_url,
+      filename: fileName,
+      size: compressedImageBuffer.length,
+      originalSize: req.file.size,
     });
   } catch (error) {
     console.error("خطا در ذخیره تصویر: ", error);
@@ -311,7 +346,7 @@ app.post("/removeLink", async (req, res) => {
   }
 });
 
-app.post("/getMyLinks", async (req, res) => {
+(app.post("/getMyLinks", async (req, res) => {
   const { links } = req.body;
   // const parsedLinks = JSON.parse(links);
   console.log({ links });
@@ -332,7 +367,7 @@ app.post("/getMyLinks", async (req, res) => {
     } catch (err) {
       res.json({ status: 404 });
     }
-  });
+  }));
 // app.post("/addToCart", async (req, res) => {
 //   console.log("body is :", req.body);
 //   const { plan, userId, amount } = req.body;
