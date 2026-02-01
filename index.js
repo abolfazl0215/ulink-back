@@ -86,7 +86,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // محدودیت 5MB
   fileFilter: (req, file, cb) => {
     // فقط تصاویر مجاز
@@ -154,6 +154,10 @@ app.post("/upload2", upload.single("image"), async (req, res) => {
     }
 
     const fileName = `${Date.now()}-${uuid()}`;
+
+    if (!req.file.buffer) {
+      return res.status(400).json({ message: "فایل خراب است" });
+    }
 
     // فشردگی و بهینه‌سازی تصویر با Sharp
     const compressedImageBuffer = await sharp(req.file.buffer)
