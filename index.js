@@ -126,7 +126,10 @@ app.use(morgan("dev"));
 // تنظیمات CORS
 const corsOptions = {
   // origin: "http://localhost:3000", // آدرس فرانت‌اند شما
-  origin: process.env.FRONT_DOMAIN, // آدرس فرانت‌اند شما
+    origin: [
+    "http://localhost:3000",
+    process.env.FRONT_DOMAIN,
+  ],
   // origin: "https://pounes.ir", // آدرس فرانت‌اند شما
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
   credentials: true, // ارسال کوکی‌ها به ازای درخواست‌های Cross-Origin
