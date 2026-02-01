@@ -153,7 +153,7 @@ app.post("/upload2", upload.single("image"), async (req, res) => {
       });
     }
 
-    const fileName = `${Date.now()}-${uuidv4()}`;
+    const fileName = `${Date.now()}-${uuid()}`;
 
     // فشردگی و بهینه‌سازی تصویر با Sharp
     const compressedImageBuffer = await sharp(req.file.buffer)
